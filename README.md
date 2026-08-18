@@ -114,7 +114,7 @@ api_key =            # 千问AI平台 / 阿里云百炼控制台获取
 type_method = auto   # auto=自动上屏；clipboard=仅复制手动粘贴
 log = true           # 日志开关（~/.config/qwen-voice-input/log.txt）
 silence_timeout = 2.0   # 静音多少秒后自动结束录音
-vad_threshold = 0.01    # 音量阈值（0~1），低于此视为静音
+vad_threshold = 0.03    # 音量阈值（0~1），低于此视为静音
 max_duration = 60       # 最长录音秒数
 ```
 
@@ -123,7 +123,7 @@ max_duration = 60       # 最长录音秒数
 | `type_method` | `auto` | `auto` 自动上屏；`clipboard` 只复制文本、手动粘贴 |
 | `log` | `true` | 关闭日志可省磁盘/IO，运行中修改需重启生效 |
 | `silence_timeout` | `2.0` | 说话间隙短可以调大，等更久才自动结束 |
-| `vad_threshold` | `0.01` | 周围安静可调小（更灵敏），有环境音可调大 |
+| `vad_threshold` | `0.03` | 低于此视为静音；说完了不自动结束（麦克风底噪高）就调大，一句话没说完就结束就调小 |
 | `max_duration` | `60` | 防止一直有声音导致录音不结束 |
 
 API Key 也可以改用环境变量（优先级高于配置文件）：
@@ -199,7 +199,8 @@ export QWEN_API_KEY=sk-xxxx
 | 症状 | 原因 | 解决 |
 |---|---|---|
 | 一按快捷键就提示缺 sounddevice/numpy | 没走虚拟环境 | 用 `.venv/bin/python` 启动，或重跑 `./setup.sh` |
-| 录音不结束 / 一句话未完就结束 | 音量阈值或静音时长不合适 | 调低 `vad_threshold`、调大 `silence_timeout` |
+| 说完了不自动结束、一直录到超时 | 麦克风底噪高于 `vad_threshold` | 调大 `vad_threshold`（如 0.03~0.05） |
+| 一句话没说完就被截断 | 阈值太高或静音判定太短 | 调小 `vad_threshold` 或调大 `silence_timeout` |
 | 识别成功但没上屏 | 缺少上屏工具 | X11 装 `xdotool`；Wayland 装 `ydotool`(GNOME) 或 `wtype`(KDE/Sway) |
 | ydotool 没反应 | 用户不在 input 组且无 `/dev/uinput` ACL，或服务未运行 | `sudo usermod -aG input $USER` 后重登，或 `setfacl -m u:$USER:rw /dev/uinput`；`systemctl enable --now ydotool` |
 | 没声音 | 默认输入设备不对 | 检查系统录音设置，或用 `pactl list sources short` 确认 |

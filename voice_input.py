@@ -56,8 +56,8 @@ type_method = auto
 log = true
 ; 静音多少秒后自动结束录音（说完了会自动识别）
 silence_timeout = 2.0
-; 音量阈值：低于该值视为静音（0~1）
-vad_threshold = 0.01
+; 音量阈值：低于该值视为静音（0~1）；内置麦克风底噪高、说完了不自动结束时调大
+vad_threshold = 0.03
 ; 最长录音秒数（防止一直有声音导致不结束）
 max_duration = 60
 """
@@ -205,7 +205,7 @@ def run_listener():
         return 1
 
     silence_timeout = float(get_config("general", "silence_timeout", "2.0"))
-    vad_threshold = float(get_config("general", "vad_threshold", "0.01"))
+    vad_threshold = float(get_config("general", "vad_threshold", "0.03"))
     max_duration = float(get_config("general", "max_duration", "60.0"))
     log(f"listener: 参数 静音阈值={silence_timeout}s 音量阈值={vad_threshold} 最长={max_duration}s")
 
@@ -429,7 +429,8 @@ def transcribe_file(path):
         return 1
 
     log("transcribe: 成功 -> " + text)
-    notify(f"识别成功：{text}", expire_ms=6000)
+    if get_type_method() == "clipboard":
+        notify(f"识别成功：{text}", expire_ms=6000)
     return _input_text(text)
 
 
@@ -451,7 +452,6 @@ def main():
 
     pid = _recording_pid()
     if pid and _pid_alive(pid):
-        notify("正在停止录音并识别……", expire_ms=1500)
         STOP_FILE.touch()
         return 0
 
