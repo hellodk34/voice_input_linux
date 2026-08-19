@@ -105,7 +105,7 @@ if [ ! -d .venv ]; then
     python3 -m venv .venv
 fi
 .venv/bin/pip install --upgrade pip >/dev/null
-.venv/bin/pip install sounddevice numpy
+.venv/bin/pip install sounddevice numpy websocket-client
 
 if [[ " ${pkglist[*]} " == *"ydotool"* ]]; then
     echo ""
@@ -125,6 +125,7 @@ fi
 echo ""
 echo "==> 环境自检"
 MISSING=()
+PYMISSING=()
 for t in "${need[@]}"; do
     if [ "$t" = "portaudio" ]; then
         if have_lib "$t"; then
@@ -140,9 +141,25 @@ for t in "${need[@]}"; do
         MISSING+=("$(pkg_name "$t")")
     fi
 done
+for m in sounddevice numpy websocket-client; do
+    case "$m" in
+        websocket-client) mod=websocket ;;
+        *) mod="$m" ;;
+    esac
+    if .venv/bin/python -c "import $mod" >/dev/null 2>&1; then
+        printf "  [OK]   %-12s %s\n" "$m" "Python 依赖"
+    else
+        printf "  [MISS] %-12s %s\n" "$m" "Python 依赖"
+        PYMISSING+=("$m")
+    fi
+done
 if [ "${#MISSING[@]}" -gt 0 ]; then
-    echo "  仍缺少: ${MISSING[*]}，请参考上方提示手动安装。"
-else
+    echo "  仍缺少系统包: ${MISSING[*]}，请参考上方提示手动安装。"
+fi
+if [ "${#PYMISSING[@]}" -gt 0 ]; then
+    echo "  仍缺少 Python 依赖: ${PYMISSING[*]}，请运行 .venv/bin/pip install ${PYMISSING[*]}"
+fi
+if [ "${#MISSING[@]}" -eq 0 ] && [ "${#PYMISSING[@]}" -eq 0 ]; then
     echo "  依赖全部就绪。"
 fi
 

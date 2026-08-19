@@ -15,9 +15,10 @@
 
 - 一键录音：按快捷键开始录音，说完静音自动结束、识别并上屏
 - 手动停止：录音中再按一次快捷键立即结束并识别
+- 两种识别模式：`batch`（整段识别后一次性上屏）与 `stream`（实时流式，边说边上屏）
 - VAD 静音检测：按音量阈值判断说话是否结束，不打断长句
 - 多后端兼容：自动探测 Wayland/X11，自动选择可用的剪贴板与上屏工具
-- 可配置：API Key、输入方式、静音时长、音量阈值、最长录音、日志开关
+- 可配置：API Key、识别模式、输入方式、静音时长、音量阈值、最长录音、日志开关
 - 隐私友好：仅把当前一段语音发给 API，不保存任何本地历史
 - 一键安装：`setup.sh` 自动识别发行版并装好全部依赖
 
@@ -111,20 +112,44 @@ sudo systemctl enable --now ydotool
 api_key =            # 千问AI平台 / 阿里云百炼控制台获取
 
 [general]
+work_mode = batch    # 识别模式：batch=整段识别；stream=边说边上屏
 type_method = auto   # auto=自动上屏；clipboard=仅复制手动粘贴
 log = true           # 日志开关（~/.config/qwen-voice-input/log.txt）
 silence_timeout = 2.0   # 静音多少秒后自动结束录音
 vad_threshold = 0.03    # 音量阈值（0~1），低于此视为静音
 max_duration = 60       # 最长录音秒数
+stream_url =            # 流式识别地址（留空默认国内；国际版见下表）
+stream_language =       # 流式语言提示：留空自动检测；可填 zh/en/ja/ko 等
+stream_silence = 1300   # 流式服务端 VAD 断句静音阈值(ms)
 ```
 
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
+| `work_mode` | `batch` | `batch` 整段录音→整段识别→一次性上屏；`stream` 实时流式识别、边说边上屏 |
 | `type_method` | `auto` | `auto` 自动上屏；`clipboard` 只复制文本、手动粘贴 |
 | `log` | `true` | 关闭日志可省磁盘/IO，运行中修改需重启生效 |
 | `silence_timeout` | `2.0` | 说话间隙短可以调大，等更久才自动结束 |
 | `vad_threshold` | `0.03` | 低于此视为静音；说完了不自动结束（麦克风底噪高）就调大，一句话没说完就结束就调小 |
 | `max_duration` | `60` | 防止一直有声音导致录音不结束 |
+| `stream_url` | `wss://dashscope.aliyuncs.com/api-ws/v1/inference` | 流式识别 WebSocket 地址；国际版改为 `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference` |
+| `stream_language` | 空（自动检测） | 流式识别语言提示，如 `zh` / `en` / `ja` / `ko` |
+| `stream_silence` | `1300` | 流式服务端 VAD 断句静音阈值(ms)，控制"一句话"的判定 |
+
+### 两种识别模式
+
+| 模式 | 值 | 原理 | 特点 |
+|---|---|---|---|
+| 整段识别 | `batch` | 录音结束后整段音频 Base64 直传 `qwen-audio-3.0-asr-flash`，拿到完整文本后一次性上屏 | 稳定、兼容性最好 |
+| 实时流式 | `stream` | 边录边把 PCM 音频经 WebSocket 推给 `qwen-audio-3.0-asr-flash-streaming`，实时接收中间/最终结果；中间结果走桌面通知，最终结果按句粘贴上屏 | "边说边出字"，延迟更低 |
+
+`stream` 模式说明：
+
+- 依赖 `websocket-client`（`setup.sh` 已自动安装，也可 `.venv/bin/pip install websocket-client`）。
+- 上屏复用批量模式同样可靠的「剪贴板 + Ctrl+V」通道，最终结果按句粘贴上屏（不经过输入法组合，避免 fcitx5/IBus 干扰）；中间结果以桌面通知实时显示"边说边出字"。
+- 断句由服务端 VAD 完成，`stream_silence` 控制"一句话"的静音判定；默认走 VAD 断句（低延迟），适合交互场景。
+- 国际版（千问AI平台 platform.qianwenai.com）请把 `stream_url` 设为 `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference`。
+
+> 升级说明：老版本配置文件无需手动处理，启动时会自动补全新增配置项（保留你已填的 API Key 等取值）。
 
 API Key 也可以改用环境变量（优先级高于配置文件）：
 
@@ -161,6 +186,7 @@ export QWEN_API_KEY=sk-xxxx
 
 ```bash
 .venv/bin/python voice_input.py --help                          # 查看参数
+.venv/bin/python voice_input.py --version                       # 查看版本
 .venv/bin/python voice_input.py --file 某段录音.wav              # 直接识别已有音频
 .venv/bin/python voice_input.py --api-key sk-xxxx --file a.wav  # 临时指定 Key 测试
 ```

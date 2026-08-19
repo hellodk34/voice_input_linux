@@ -66,8 +66,12 @@ fi
 echo ""
 echo "================ Python 依赖 ================"
 if [ -x .venv/bin/python ]; then
-    for m in sounddevice numpy; do
-        if .venv/bin/python -c "import $m" >/dev/null 2>&1; then
+    for m in sounddevice numpy websocket-client; do
+        case "$m" in
+            websocket-client) mod=websocket ;;
+            *) mod="$m" ;;
+        esac
+        if .venv/bin/python -c "import $mod" >/dev/null 2>&1; then
             printf "  [OK]   %s\n" "$m"
         else
             printf "  [MISS] %s\n" "$m"
@@ -150,7 +154,7 @@ fi
 if [ -x .venv/bin/python ] && ! .venv/bin/python -c "import sounddevice" >/dev/null 2>&1; then
     echo ""
     echo "  Python 依赖:"
-    echo "    .venv/bin/pip install sounddevice numpy"
+    echo "    .venv/bin/pip install sounddevice numpy websocket-client"
 fi
 
 echo ""
