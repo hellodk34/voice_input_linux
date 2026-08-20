@@ -66,8 +66,12 @@ fi
 echo ""
 echo "================ Python 依赖 ================"
 if [ -x .venv/bin/python ]; then
-    for m in sounddevice numpy; do
-        if .venv/bin/python -c "import $m" >/dev/null 2>&1; then
+    for m in sounddevice numpy websocket-client; do
+        case "$m" in
+            websocket-client) mod=websocket ;;
+            *) mod="$m" ;;
+        esac
+        if .venv/bin/python -c "import $mod" >/dev/null 2>&1; then
             printf "  [OK]   %s\n" "$m"
         else
             printf "  [MISS] %s\n" "$m"
@@ -75,6 +79,16 @@ if [ -x .venv/bin/python ]; then
     done
 else
     echo "  [MISS] .venv 不存在，请先运行 ./setup.sh 或 python3 -m venv .venv"
+fi
+
+echo ""
+echo "================ 浮动预览层(stream) ================"
+GTK_OK=0
+if python3 -c "import gi; gi.require_version('Gtk','3.0'); import gi.repository.Gtk" >/dev/null 2>&1; then
+    GTK_OK=1
+    echo "  [OK]   python3-gi + GTK3（流式中间结果浮动预览）"
+else
+    echo "  [MISS] python3-gi + GTK3：流式中间结果将退化为桌面通知"
 fi
 
 echo ""
@@ -94,6 +108,18 @@ pkg_name() {
             esac ;;
         wl-copy) echo "wl-clipboard" ;;
         *) echo "$1" ;;
+    esac
+}
+
+# GTK 悬浮预览层依赖（stream 模式中间结果用；缺了会退化为桌面通知，可选）
+gtk_pkg() {
+    case "$ID" in
+        debian|ubuntu|linuxmint|pop|raspbian|elementary) echo "python3-gi gir1.2-gtk-3.0" ;;
+        fedora|rhel|centos|rocky|alma)                   echo "python3-gobject gtk3" ;;
+        arch|manjaro|endeavouros|arcolinux)              echo "python-gobject gtk3" ;;
+        opensuse*|suse|sled|sles)                        echo "python3-gobject gtk3" ;;
+        void)                                            echo "python3-gobject gtk+3" ;;
+        *)                                               echo "" ;;
     esac
 }
 
@@ -131,6 +157,11 @@ if ! have notify-send;       then missing+=("$(pkg_name libnotify)"); fi
 for t in "${need[@]}"; do
     if ! have "$t"; then missing+=("$(pkg_name "$t")"); fi
 done
+# GTK 悬浮预览层（stream 用，可选）
+if [ "$GTK_OK" = "0" ]; then
+    _gtk="$(gtk_pkg)"
+    if [ -n "$_gtk" ]; then missing+=($_gtk); fi
+fi
 
 if [ "${#missing[@]}" -eq 0 ]; then
     echo "  系统工具齐全，无需额外安装。"
@@ -150,7 +181,7 @@ fi
 if [ -x .venv/bin/python ] && ! .venv/bin/python -c "import sounddevice" >/dev/null 2>&1; then
     echo ""
     echo "  Python 依赖:"
-    echo "    .venv/bin/pip install sounddevice numpy"
+    echo "    .venv/bin/pip install sounddevice numpy websocket-client"
 fi
 
 echo ""
