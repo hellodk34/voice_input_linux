@@ -13,155 +13,37 @@
 
 ## 功能特性
 
-- 一键录音：按快捷键开始录音，说完静音自动结束、识别并上屏
-- 手动停止：录音中再按一次快捷键立即结束并识别
-- 两种识别模式：`batch`（整段识别后一次性上屏）与 `stream`（实时流式，边说边上屏）
-- VAD 静音检测：按音量阈值判断说话是否结束，不打断长句
-- 多后端兼容：自动探测 Wayland/X11，自动选择可用的剪贴板与上屏工具
-- 可配置：API Key、识别模式、输入方式、静音时长、音量阈值、最长录音、日志开关
-- 隐私友好：仅把当前一段语音发给 API，不保存任何本地历史
-- 一键安装：`setup.sh` 自动识别发行版并装好全部依赖
+- 🎙️ 一键录音：按快捷键开始，说完静音自动结束、识别上屏；录音中再按一次快捷键手动结束
+- 🔀 两种识别模式：`batch`（整段识别、一次性上屏）、`stream`（实时流式、边说边上屏）
+- 🖥️ 自动探测 Wayland/X11，自动选择可用的剪贴板与上屏工具
+- 📦 一键安装：`setup.sh` 自动识别发行版并装好全部依赖
+- 🔒 隐私友好：仅把当前一段语音发给 API，不保存任何本地历史
 
-## demo 演示
+## 演示
+
+### batch 模式动图演示
 
 ![demo](./demo.webp)
 
-## 工作原理
+### stream 模式视频演示（带音频）
 
-```
-  ┌─────────┐  快捷键   ┌──────────────┐   派生   ┌──────────────────┐
-  │ 主进程   │ ───────▶ │  start_recording │ ─────▶ │  --listen 子进程   │
-  └─────────┘           └──────────────┘          └────────┬─────────┘
-       ▲  再按一次(手动停止)                                  │ PortAudio 录音
-       └───────────── touch stop 文件 ◀────────────────────┼──┘
-                                                           ▼
-                                              静音≥2s / 手动 / 超时
-                                                           │
-                                                           ▼
-                                       ┌────────────────────────────┐
-                                       │  Base64 → DashScope ASR API │
-                                       └────────────────────────────┘
-                                                           │ output.text
-                                                           ▼
-                                       ┌────────────────────────────┐
-                                       │  剪贴板 + 模拟 Ctrl+V 上屏   │
-                                       │  (wl-copy/xclip  + ydotool/ │
-                                       │   wtype/xdotool)           │
-                                       └────────────────────────────┘
-```
-
-`--listen` 子进程由 `sys.executable` 派生，因此只要入口是 `.venv/bin/python`，整个链路都使用虚拟环境里的依赖，与系统 Python 无关。
+https://github.com/user-attachments/assets/6b3b4b36-176a-4b33-94be-f2708e1386c3
 
 ## 快速开始
-
-先探测环境（只读检测，推荐先跑）：
 
 ```bash
 git clone https://github.com/hellodk34/voice_input_linux
 cd voice_input_linux
-./detect.sh        # 检测发行版/桌面/显示服务器，给出安装建议
+./detect.sh     # 只读探测环境，给出安装建议
+./setup.sh      # 一键安装系统依赖 + Python 依赖
 ```
 
-### 一键安装
+然后：
 
-```bash
-./setup.sh
-```
-
-`setup.sh` 会：
-
-1. 检测发行版（`/etc/os-release`）与显示服务器
-2. 安装对应系统包（PortAudio、libnotify、剪贴板/上屏工具）
-3. 创建 `.venv` 并安装 `sounddevice`、`numpy`
-4. 环境自检并打印你所在桌面环境的热键设置位置
-
-`setup.sh` 可重复执行：系统包/venv/pip 均已就绪时是幂等操作（系统包已装会跳过，pip 已满足则无事可做），补依赖或想确认环境时随时重跑。`detect.sh` 也会评估上屏能力（`ydotool` + input 组或 `/dev/uinput` ACL 均算可用）。
-
-### 手动安装
-
-<details>
-<summary>点击展开</summary>
-
-```bash
-# 1. 系统依赖（以 Debian/Ubuntu 为例）
-sudo apt install libportaudio2 libnotify-bin wl-clipboard xclip xdotool
-# Wayland 下按需：GNOME 需要 ydotool；KDE/Sway 建议 wtype
-
-# 2. Python 依赖（虚拟环境）
-python3 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install sounddevice numpy
-
-# 3. ydotool 额外步骤（GNOME Wayland 需要）
-sudo usermod -aG input $USER   # 然后注销重登
-sudo systemctl enable --now ydotool
-```
-
-</details>
-
-## 配置
-
-申请 API KEY
-- 千问AI平台：platform.qianwenai.com  
-- 阿里云百炼平台：bailian.console.aliyun.com
-
-配置文件：`~/.config/qwen-voice-input/config.ini`（首次运行自动生成）
-
-```ini
-[auth]
-api_key =            # 千问AI平台 / 阿里云百炼控制台获取
-
-[general]
-work_mode = batch    # 识别模式：batch=整段识别；stream=边说边上屏
-type_method = auto   # auto=自动上屏；clipboard=仅复制手动粘贴
-log = true           # 日志开关（~/.config/qwen-voice-input/log.txt）
-silence_timeout = 2.0   # 静音多少秒后自动结束录音
-vad_threshold = 0.03    # 音量阈值（0~1），低于此视为静音
-max_duration = 60       # 最长录音秒数
-stream_url =            # 流式识别地址（留空默认国内；国际版见下表）
-stream_language =       # 流式语言提示：留空自动检测；可填 zh/en/ja/ko 等
-stream_silence = 1300   # 流式服务端 VAD 断句静音阈值(ms)
-```
-
-| 配置项 | 默认值 | 说明 |
-|---|---|---|
-| `work_mode` | `batch` | `batch` 整段录音→整段识别→一次性上屏；`stream` 实时流式识别、边说边上屏 |
-| `type_method` | `auto` | `auto` 自动上屏；`clipboard` 只复制文本、手动粘贴 |
-| `log` | `true` | 关闭日志可省磁盘/IO，运行中修改需重启生效 |
-| `silence_timeout` | `2.0` | 说话间隙短可以调大，等更久才自动结束 |
-| `vad_threshold` | `0.03` | 低于此视为静音；说完了不自动结束（麦克风底噪高）就调大，一句话没说完就结束就调小 |
-| `max_duration` | `60` | 防止一直有声音导致录音不结束 |
-| `stream_url` | `wss://dashscope.aliyuncs.com/api-ws/v1/inference` | 流式识别 WebSocket 地址；国际版改为 `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference` |
-| `stream_language` | 空（自动检测） | 流式识别语言提示，如 `zh` / `en` / `ja` / `ko` |
-| `stream_silence` | `1300` | 流式服务端 VAD 断句静音阈值(ms)，控制"一句话"的判定 |
-
-### 两种识别模式
-
-| 模式 | 值 | 原理 | 特点 |
-|---|---|---|---|
-| 整段识别 | `batch` | 录音结束后整段音频 Base64 直传 `qwen-audio-3.0-asr-flash`，拿到完整文本后一次性上屏 | 稳定、兼容性最好 |
-| 实时流式 | `stream` | 边录边把 PCM 音频经 WebSocket 推给 `qwen-audio-3.0-asr-flash-streaming`，实时接收中间/最终结果；中间结果走桌面通知，最终结果按句粘贴上屏 | "边说边出字"，延迟更低 |
-
-`stream` 模式说明：
-
-- 依赖 `websocket-client`（`setup.sh` 已自动安装，也可 `.venv/bin/pip install websocket-client`）。
-- 上屏复用批量模式同样可靠的「剪贴板 + Ctrl+V」通道，最终结果按句粘贴上屏（不经过输入法组合，避免 fcitx5/IBus 干扰）；中间结果以桌面通知实时显示"边说边出字"。
-- 断句由服务端 VAD 完成，`stream_silence` 控制"一句话"的静音判定；默认走 VAD 断句（低延迟），适合交互场景。
-- 国际版（千问AI平台 platform.qianwenai.com）请把 `stream_url` 设为 `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference`。
-
-> 升级说明：老版本配置文件无需手动处理，启动时会自动补全新增配置项（保留你已填的 API Key 等取值）。
-
-API Key 也可以改用环境变量（优先级高于配置文件）：
-
-```bash
-export QWEN_API_KEY=sk-xxxx
-```
-
-## 使用
-
-### 配置全局快捷键
-
-命令统一填：
+1. 申请 API Key 并填入 `~/.config/qwen-voice-input/config.ini` 的 `api_key`（该文件首次运行自动生成）：
+   - 千问AI平台：platform.qianwenai.com
+   - 阿里云百炼平台：bailian.console.aliyun.com
+2. 绑定全局快捷键，命令统一填：
 
 ```
 <你的路径>/voice_input_linux/.venv/bin/python <你的路径>/voice_input_linux/voice_input.py
@@ -175,72 +57,44 @@ export QWEN_API_KEY=sk-xxxx
 | Cinnamon | 系统设置 → 键盘 → 快捷键 |
 | Sway / i3 | `~/.config/sway/config` 或 `~/.config/i3/config`：`bindsym $mod+v exec ...` |
 
-### 日常使用
+3. 使用：把光标放到要输入的地方，按一次快捷键开始说话；说完静音 2 秒自动识别上屏，想提前结束就再按一次快捷键。
 
-1. 把光标放到要输入的地方
-2. 按一次快捷键 → 通知栏提示"请开始说话……"
-3. 开始说话；说完静音 2 秒 → 自动识别并上屏
-4. 想提前结束 → 再按一次快捷键
+## 麦克风底噪检测（推荐）
 
-### 命令行
+首次使用或更换麦克风后，建议先跑一次底噪检测，得到适合你麦克风的 `vad_threshold` / `batch_silence_timeout` 推荐值：
 
 ```bash
-.venv/bin/python voice_input.py --help                          # 查看参数
-.venv/bin/python voice_input.py --version                       # 查看版本
-.venv/bin/python voice_input.py --file 某段录音.wav              # 直接识别已有音频
-.venv/bin/python voice_input.py --api-key sk-xxxx --file a.wav  # 临时指定 Key 测试
+./detect_mic.sh
 ```
 
-## 兼容性
+脚本会引导你在系统设置里选好默认麦克风，然后测 3 秒底噪并打印推荐配置（只打印、不改配置），你按提示改 `config.ini` 即可。详细说明见 [DESIGN.md](./DESIGN.md)。
 
-### 显示服务器与桌面环境
+## 两种识别模式
 
-| 显示服务器 | 桌面环境 | 剪贴板 | 上屏方式 |
-|---|---|---|---|
-| Wayland | GNOME (Mutter) | `wl-copy` | `ydotool`（uinput，需 input 组权限） |
-| Wayland | KDE Plasma / Sway / Hyprland 等 | `wl-copy` | `wtype`（免 root） |
-| X11 | GNOME / KDE / XFCE / Cinnamon / i3 等 | `xclip` / `xsel` | `xdotool` |
-
-脚本按以下顺序自动探测与降级：
-
-- 显示服务器：`WAYLAND_DISPLAY` 有值 → Wayland；否则有 `DISPLAY` → X11
-- 剪贴板：Wayland 用 `wl-copy`；X11 依次尝试 `xclip` → `xsel`
-- 上屏：X11 用 `xdotool key ctrl+v`；Wayland 下非 GNOME 且装有 `wtype` 时优先 `wtype`，否则用 `ydotool`；都不满足则退化为"已复制，请按 Ctrl+V"
-
-关于 input 组：加入 `input` 组只是让当前用户能打开 `/dev/uinput` 的常规做法。如果系统给 `/dev/uinput` 配置了 ACL（如 `setfacl -m u:用户名:rw /dev/uinput`），即使不在 `input` 组也能正常上屏。可用 `getfacl /dev/uinput` 查看。
-
-### 发行版
-
-| 发行版 | 包管理器 |
-|---|---|
-| Debian / Ubuntu / Mint / Pop!_OS 等 | `apt`，`setup.sh` 自动处理 |
-| Fedora / RHEL / Rocky / AlmaLinux | `dnf` |
-| Arch / Manjaro / EndeavourOS | `pacman` |
-| openSUSE | `zypper` |
-| Void | `xbps-install` |
-| 其他 | 脚本给出需要手动安装的包列表 |
-
-## 故障排查
-
-| 症状 | 原因 | 解决 |
+| 模式 | 值 | 说明 |
 |---|---|---|
-| 一按快捷键就提示缺 sounddevice/numpy | 没走虚拟环境 | 用 `.venv/bin/python` 启动，或重跑 `./setup.sh` |
-| 说完了不自动结束、一直录到超时 | 麦克风底噪高于 `vad_threshold` | 调大 `vad_threshold`（如 0.03~0.05） |
-| 一句话没说完就被截断 | 阈值太高或静音判定太短 | 调小 `vad_threshold` 或调大 `silence_timeout` |
-| 识别成功但没上屏 | 缺少上屏工具 | X11 装 `xdotool`；Wayland 装 `ydotool`(GNOME) 或 `wtype`(KDE/Sway) |
-| ydotool 没反应 | 用户不在 input 组且无 `/dev/uinput` ACL，或服务未运行 | `sudo usermod -aG input $USER` 后重登，或 `setfacl -m u:$USER:rw /dev/uinput`；`systemctl enable --now ydotool` |
-| 没声音 | 默认输入设备不对 | 检查系统录音设置，或用 `pactl list sources short` 确认 |
-| 提示未配置 API Key | 配置里是空值 | 编辑 `~/.config/qwen-voice-input/config.ini` 填入 `api_key` |
-| 识别结果乱码 | 终端编码问题 | 脚本内部统一 UTF-8，检查你的系统 locale |
+| 整段识别 | `batch`（默认） | 录完一整段 → 整段识别 → 一次性上屏，稳定 |
+| 实时流式 | `stream` | 边说边出字，延迟更低 |
+
+改 `config.ini` 里的 `work_mode` 即可切换。其余配置项一般保持默认即可——尤其是 `stream_*` 开头的一系列配置（服务端断句、语言提示等），模板默认值已按常见场景调好，通常无需修改。
+
+## 更多
+
+- 完整配置项、工作原理、兼容性、故障排查：[DESIGN.md](./DESIGN.md)
+- 更新日志：[CHANGELOG.md](./CHANGELOG.md)
 
 ## 项目结构
 
 ```
 .
 ├── voice_input.py      # 主程序（录音、VAD、ASR、上屏）
+├── overlay.py          # stream 模式中间结果的 GTK 浮动预览层
 ├── setup.sh            # 多发行版一键安装脚本
-├── detect.sh           # 环境探测脚本（只检测，给出安装建议）
+├── detect.sh           # 环境探测脚本
+├── detect_mic.sh       # 麦克风底噪检测，推荐 vad_threshold 等配置
 ├── README.md
+├── DESIGN.md           # 设计与细节
+├── CHANGELOG.md        # 更新日志
 └── LICENSE
 ```
 

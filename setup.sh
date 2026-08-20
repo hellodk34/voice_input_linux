@@ -53,6 +53,18 @@ install_cmd() {
     esac
 }
 
+# GTK 悬浮预览层依赖（stream 模式中间结果用；缺了会退化为桌面通知，可选）
+gtk_pkgs() {
+    case "$ID" in
+        debian|ubuntu|linuxmint|pop|raspbian|elementary) echo "python3-gi gir1.2-gtk-3.0" ;;
+        fedora|rhel|centos|rocky|alma)                   echo "python3-gobject gtk3" ;;
+        arch|manjaro|endeavouros|arcolinux)              echo "python-gobject gtk3" ;;
+        opensuse*|suse|sled|sles)                        echo "python3-gobject gtk3" ;;
+        void)                                            echo "python3-gobject gtk+3" ;;
+        *)                                               echo "" ;;
+    esac
+}
+
 have() {
     command -v "$1" >/dev/null 2>&1
 }
@@ -99,6 +111,12 @@ echo " 显示服务器: $DS"
 echo "=============================================="
 echo "==> 安装系统包: ${pkglist[*]}"
 install_cmd "${pkglist[@]}"
+
+GTK_PKGS="$(gtk_pkgs)"
+if [ -n "$GTK_PKGS" ]; then
+    echo "==> 安装 GTK 悬浮预览层依赖（stream 用）: $GTK_PKGS"
+    install_cmd $GTK_PKGS
+fi
 
 echo "==> 创建虚拟环境并安装 Python 依赖"
 if [ ! -d .venv ]; then
@@ -153,6 +171,11 @@ for m in sounddevice numpy websocket-client; do
         PYMISSING+=("$m")
     fi
 done
+if python3 -c "import gi; gi.require_version('Gtk','3.0'); import gi.repository.Gtk" >/dev/null 2>&1; then
+    printf "  [OK]   %-12s %s\n" "python3-gi" "GTK3 悬浮预览层"
+else
+    printf "  [MISS] %-12s %s\n" "python3-gi" "GTK3 悬浮预览层（stream 将退化为通知）"
+fi
 if [ "${#MISSING[@]}" -gt 0 ]; then
     echo "  仍缺少系统包: ${MISSING[*]}，请参考上方提示手动安装。"
 fi
