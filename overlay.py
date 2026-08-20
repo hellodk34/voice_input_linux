@@ -67,7 +67,9 @@ def _resize_and_position(win, label):
         size_px = max(24, min(64, int(h * 0.10)))
         desc = Pango.FontDescription()
         desc.set_size(int(size_px * 72.0 / 96.0 * Pango.SCALE))
-        label.override_font(desc)
+        attrs = Pango.AttrList()
+        attrs.insert(Pango.attr_font_desc_new(desc))
+        label.set_attributes(attrs)
     except Exception:
         pass
 
